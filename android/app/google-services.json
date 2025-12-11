@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "896950306295",
+    "project_id": "nauta-tours",
+    "storage_bucket": "nauta-tours.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:896950306295:android:60691b44b59a9c9cb69af2",
+        "android_client_info": {
+          "package_name": "com.example.nauta_tours"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCR3-4mD1xgpYCgBM9R-AyrLvxZqmQbYQE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
