@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class BebidasScreen extends StatelessWidget {
-  const BebidasScreen({Key? key}) : super(key: key);
+  const BebidasScreen({super.key});
 
-  Widget _buildCard(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final nombre = data['nombre'] ?? 'Sin nombre';
-    final descripcion = data['descripcion'] ?? '';
-    final imageUrl = data['imageUrl'] as String?;
+  // Obtener bebidas desde Supabase
+  Future<List<Map<String, dynamic>>> _fetchBebidas() async {
+    final data = await Supabase.instance.client
+        .from('bebidas')
+        .select()
+        .eq('activo', true)
+        .order('nombre');
+
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  Widget _buildCard(Map<String, dynamic> bebida) {
+    final nombre = bebida['nombre'] ?? 'Sin nombre';
+    final descripcion = bebida['descripcion'] ?? '';
+    final imageUrl = bebida['image_url']?.toString() ?? '';
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       elevation: 2,
@@ -19,15 +30,25 @@ class BebidasScreen extends StatelessWidget {
           child: SizedBox(
             width: 64,
             height: 64,
-            child: imageUrl != null && imageUrl.isNotEmpty
-                ? Image.network(imageUrl, fit: BoxFit.cover)
-                : Image.asset('assets/placeholder.jpg', fit: BoxFit.cover),
+            child: Image.network(
+              imageUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  Image.asset('assets/placeholder.jpg', fit: BoxFit.cover),
+            ),
           ),
         ),
-        title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(descripcion, maxLines: 2, overflow: TextOverflow.ellipsis),
+        title: Text(
+          nombre,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          descripcion,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
         onTap: () {
-          // Puedes mostrar detalle o modal con receta/ingredientes
+          // Aquí puedes mostrar detalle o receta
         },
       ),
     );
@@ -35,23 +56,29 @@ class BebidasScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance.collection('bebidas').orderBy('nombre').snapshots();
-
     return Scaffold(
       appBar: AppBar(title: const Text('Bebidas Tradicionales')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: stream,
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _fetchBebidas(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text('Error al cargar bebidas'));
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          final docs = snapshot.data!.docs;
-          if (docs.isEmpty) return const Center(child: Text('No hay bebidas registradas.'));
+          if (snapshot.hasError) {
+            return const Center(child: Text('Error al cargar bebidas'));
+          }
+
+          final bebidas = snapshot.data ?? [];
+
+          if (bebidas.isEmpty) {
+            return const Center(child: Text('No hay bebidas registradas.'));
+          }
 
           return ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            itemCount: docs.length,
-            itemBuilder: (context, index) => _buildCard(docs[index]),
+            itemCount: bebidas.length,
+            itemBuilder: (context, index) => _buildCard(bebidas[index]),
           );
         },
       ),

@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nauta_tours/screens/map_screen.dart';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LugaresScreen extends StatelessWidget {
-  const LugaresScreen({Key? key}) : super(key: key);
+  const LugaresScreen({super.key});
 
-  Widget _buildCard(BuildContext context, DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final nombre = data['nombre'] ?? 'Sin nombre';
-    final descripcion = data['descripcion'] ?? '';
-    final imageUrl = data['imageUrl'] as String?;
+  // 🔥 Obtener lugares desde Supabase
+  Future<List<Map<String, dynamic>>> _fetchLugares() async {
+    final data = await Supabase.instance.client
+        .from('lugares')
+        .select()
+        .order('nombre');
+
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  Widget _buildCard(BuildContext context, Map<String, dynamic> lugar) {
+    final nombre = lugar['nombre'] ?? 'Sin nombre';
+    final descripcion = lugar['descripcion'] ?? '';
+    final imageUrl = lugar['image_url']?.toString();
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       elevation: 3,
@@ -18,9 +30,7 @@ class LugaresScreen extends StatelessWidget {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => LugarDetailScreen(data: data),
-            ),
+            MaterialPageRoute(builder: (_) => LugarDetailScreen(lugar: lugar)),
           );
         },
         child: Row(
@@ -29,10 +39,18 @@ class LugaresScreen extends StatelessWidget {
               width: 110,
               height: 110,
               decoration: BoxDecoration(
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(12),
+                ),
                 image: imageUrl != null && imageUrl.isNotEmpty
-                    ? DecorationImage(image: NetworkImage(imageUrl), fit: BoxFit.cover)
-                    : const DecorationImage(image: AssetImage('assets/placeholder.jpg'), fit: BoxFit.cover),
+                    ? DecorationImage(
+                        image: NetworkImage(imageUrl),
+                        fit: BoxFit.cover,
+                      )
+                    : const DecorationImage(
+                        image: AssetImage('assets/placeholder.jpg'),
+                        fit: BoxFit.cover,
+                      ),
               ),
             ),
             const SizedBox(width: 12),
@@ -42,7 +60,13 @@ class LugaresScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(nombre, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(
+                      nombre,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 6),
                     Text(
                       descripcion,
@@ -52,7 +76,7 @@ class LugaresScreen extends StatelessWidget {
                   ],
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -61,23 +85,30 @@ class LugaresScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance.collection('lugares').orderBy('nombre').snapshots();
-
     return Scaffold(
       appBar: AppBar(title: const Text('Lugares Turísticos')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: stream,
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _fetchLugares(),
         builder: (context, snapshot) {
-          if (snapshot.hasError) return const Center(child: Text('Error al cargar lugares'));
-          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-          final docs = snapshot.data!.docs;
-          if (docs.isEmpty) return const Center(child: Text('No hay lugares registrados aún.'));
+          if (snapshot.hasError) {
+            return const Center(child: Text('Error al cargar lugares'));
+          }
+
+          final lugares = snapshot.data ?? [];
+
+          if (lugares.isEmpty) {
+            return const Center(child: Text('No hay lugares registrados.'));
+          }
 
           return ListView.builder(
             padding: const EdgeInsets.only(top: 12, bottom: 16),
-            itemCount: docs.length,
-            itemBuilder: (context, index) => _buildCard(context, docs[index]),
+            itemCount: lugares.length,
+            itemBuilder: (context, index) =>
+                _buildCard(context, lugares[index]),
           );
         },
       ),
@@ -86,16 +117,18 @@ class LugaresScreen extends StatelessWidget {
 }
 
 class LugarDetailScreen extends StatelessWidget {
-  final Map<String, dynamic> data;
-  const LugarDetailScreen({Key? key, required this.data}) : super(key: key);
+  final Map<String, dynamic> lugar;
+
+  const LugarDetailScreen({super.key, required this.lugar});
 
   @override
   Widget build(BuildContext context) {
-    final nombre = data['nombre'] ?? 'Sin nombre';
-    final descripcion = data['descripcion'] ?? '';
-    final imageUrl = data['imageUrl'] as String?;
-    final lat = data['lat'];
-    final lng = data['lng'];
+    final nombre = lugar['nombre'] ?? 'Sin nombre';
+    final descripcion = lugar['descripcion'] ?? '';
+    final imageUrl = lugar['image_url']?.toString();
+
+    final lat = (lugar['lat'] as num?)?.toDouble();
+    final lng = (lugar['lng'] as num?)?.toDouble();
 
     return Scaffold(
       appBar: AppBar(title: Text(nombre)),
@@ -104,37 +137,46 @@ class LugarDetailScreen extends StatelessWidget {
           SizedBox(
             height: 220,
             child: imageUrl != null && imageUrl.isNotEmpty
-                ? Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity)
-                : Image.asset('assets/placeholder.jpg', fit: BoxFit.cover, width: double.infinity),
+                ? Image.network(imageUrl, fit: BoxFit.cover)
+                : Image.asset('assets/placeholder.jpg', fit: BoxFit.cover),
           ),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nombre, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(
+                  nombre,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 Text(descripcion),
                 const SizedBox(height: 20),
                 if (lat != null && lng != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Ubicación:', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      Text('Lat: $lat, Lng: $lng'),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          // Aquí puedes abrir Google Maps con url_launcher si quieres
-                        },
-                        icon: const Icon(Icons.map),
-                        label: const Text('Ver en el mapa'),
-                      )
-                    ],
-                  )
+                  Center(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.map),
+                      label: const Text('Ver en el mapa'),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => MapaLugarScreen(
+                              lat: lat,
+                              lng: lng,
+                              nombre: nombre,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );

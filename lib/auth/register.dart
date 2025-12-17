@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'verify_email_pending.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -17,15 +18,11 @@ class _RegisterPageState extends State<RegisterPage> {
   bool isLoading = false;
   bool obscurePassword = true;
 
-  // Verificar si el correo ya existe
   Future<bool> emailExists(String email) async {
-    try {
-      final methods =
-          await FirebaseAuth.instance.fetchSignInMethodsForEmail(email);
-      return methods.isNotEmpty;
-    } catch (_) {
-      return false;
-    }
+    final methods = await FirebaseAuth.instance.fetchSignInMethodsForEmail(
+      email,
+    );
+    return methods.isNotEmpty;
   }
 
   Future<void> register() async {
@@ -42,43 +39,39 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => isLoading = true);
 
-    // Verificar si el correo existe
     if (await emailExists(email)) {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Este correo ya está registrado.")),
+        const SnackBar(content: Text("Este correo ya está registrado")),
       );
       return;
     }
 
     try {
-      // Crear cuenta
-      UserCredential userCred =
-          await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      UserCredential userCred = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
 
       final uid = userCred.user!.uid;
 
-      // Guardar el usuario en Firestore
       await FirebaseFirestore.instance.collection("users").doc(uid).set({
         "name": name,
         "email": email,
         "createdAt": DateTime.now(),
       });
 
-      // Enviar verificación
       await userCred.user!.sendEmailVerification();
 
       if (!mounted) return;
 
-      Navigator.pop(context); // Regresar al login
-
-    } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? "Error desconocido")),
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const VerifyEmailPendingPage()),
+        (route) => false,
       );
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message ?? "Error")));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -93,28 +86,18 @@ class _RegisterPageState extends State<RegisterPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-
-            /// NOMBRE / USUARIO
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: "Nombre / Usuario",
-              ),
+              decoration: const InputDecoration(labelText: "Nombre / Usuario"),
             ),
-
             const SizedBox(height: 20),
-
-            /// EMAIL
             TextField(
               controller: emailController,
               decoration: const InputDecoration(
                 labelText: "Correo electrónico",
               ),
             ),
-
             const SizedBox(height: 20),
-
-            /// PASSWORD
             TextField(
               controller: passwordController,
               obscureText: obscurePassword,
@@ -130,10 +113,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 30),
-
-            /// BOTÓN
             isLoading
                 ? const CircularProgressIndicator()
                 : ElevatedButton(
